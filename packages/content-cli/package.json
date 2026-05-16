@@ -1,0 +1,22 @@
+{
+  "name": "@glossa/content-cli",
+  "version": "0.1.0",
+  "private": true,
+  "bin": {
+    "glossa-content": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@glossa/shared": "*",
+    "commander": "^12.1.0",
+    "pg": "^8.13.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.1",
+    "@types/pg": "^8.11.11",
+    "typescript": "^5.6.3",
+    "tsx": "^4.19.2"
+  }
+}

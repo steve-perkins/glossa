@@ -1,1 +1,35 @@
-.idea
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+
+# Environment — never commit real secrets
+.env
+.env.local
+.env.*.local
+
+# TypeORM compiled output
+apps/api/dist/
+
+# Vite cache
+.vite/
+
+# OS / editor
+.DS_Store
+.idea/
+*.iml
+*.suo
+.vs/
+.vscode/settings.json
+
+# Content drafts (remove this line if you want drafts in source control)
+content/drafts/
+
+# Test coverage
+coverage/
+
+# Logs
+*.log
+npm-debug.log*

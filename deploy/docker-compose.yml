@@ -1,0 +1,23 @@
+## Local development stack.
+## Provides Postgres only — web and api run directly via npm scripts.
+## For production, images are built by CI and orchestrated in a separate ops repo.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: glossa
+      POSTGRES_PASSWORD: glossa
+      POSTGRES_DB: glossa
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U glossa -d glossa"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
