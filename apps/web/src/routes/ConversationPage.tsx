@@ -1,6 +1,74 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { SCENARIOS, FREE_MODES, buildScenarioSystem, buildFreeSystem, type Scenario, type FreeMode, type CefrLevel } from '../data/conversation';
-import { COURSES } from '../data/courses';
+import type { Scenario, FreeChatMode, CefrLevel } from '@glossa/shared';
+import { useLanguageContent } from '../hooks/useContent';
+
+type FreeMode = FreeChatMode;
+
+const CEFR_GUIDE: Partial<Record<CefrLevel, string>> = {
+  A1: 'Use only A1 level: present tense, very short simple sentences (5-8 words), the most common everyday vocabulary, one idea per sentence. If the learner makes a mistake, do not correct them mid-sentence — keep the conversation flowing.',
+  A2: 'Use only A2 level: present and simple past, short sentences (8-12 words), everyday vocabulary, occasional connectors (and, but, because, then).',
+  B1: 'Use B1 level: a mix of tenses, sentences up to ~15 words, some idiomatic phrases, ask follow-up questions to keep the conversation going.',
+  B2: 'Use B2 level: natural sentence length and rhythm, varied vocabulary, full range of tenses, light idiomatic language. Stay clear, but stop simplifying.',
+};
+
+const CORE_RULES = [
+  'DO NOT repeat or paraphrase what the learner just said back to them. They already know what they wrote. Respond like a real conversation partner with your OWN thoughts: react, ask a question, share an opinion, introduce something new.',
+  'Keep replies short — 1 to 2 sentences total. End most replies with a single follow-up question so the conversation continues.',
+  'Never explain grammar or break the fourth wall unless the learner explicitly asks. Stay in conversation.',
+];
+
+function buildScenarioSystem(scenario: Scenario, langName: string, level: string): string {
+  return [
+    `You are roleplaying as ${scenario.character}.`,
+    `Setting: ${scenario.setting}`,
+    `The learner is practicing ${langName} at CEFR level ${level}.`,
+    CEFR_GUIDE[level as CefrLevel] || CEFR_GUIDE.A2,
+    '',
+    '=== HARD RULES ===',
+    `1. Reply ONLY in ${langName}. Never write in English unless the learner is clearly stuck and asks for help.`,
+    '2. Stay in character at all times. You ARE this person; you are not an assistant pretending.',
+    ...CORE_RULES.map((r, i) => `${i + 3}. ${r}`),
+    '',
+    '=== GOAL OF THIS SCENE ===',
+    scenario.goal,
+    '',
+    '=== ENDING THE SCENE ===',
+    'After the goal above has clearly been met (e.g. the order is placed, the room is assigned, the directions are understood), give ONE final in-character line that wraps things up, then on a brand-new line write exactly:',
+    '[END]',
+    'Do NOT write [END] in any other situation. Never write [END] inside a sentence. Never write it before the goal is met.',
+  ].join('\n');
+}
+
+function buildFreeSystem(mode: string, langName: string, level: string): string {
+  const cefr = CEFR_GUIDE[level as CefrLevel] || CEFR_GUIDE.A2;
+  if (mode === 'crosstalk') {
+    return [
+      `You are a friendly conversation partner helping someone practice ${langName} at CEFR level ${level}.`,
+      `The learner writes to you in English. You reply in ${langName}, then give a literal English translation of YOUR ${langName} reply.`,
+      cefr, '',
+      '=== HARD RULES ===',
+      ...CORE_RULES.map((r, i) => `${i + 1}. ${r}`),
+      `${CORE_RULES.length + 1}. The translation you give is of YOUR OWN ${langName} reply — NOT a translation of the learner's English message.`,
+      '',
+      '=== REPLY FORMAT (exact) ===',
+      'Every reply MUST follow this exact two-block format:',
+      '',
+      `<your ${langName} reply, 1–2 sentences>`,
+      '---',
+      `<literal English translation of your ${langName} reply above>`,
+    ].join('\n');
+  }
+  return [
+    `You are a friendly conversation partner helping someone practice ${langName} at CEFR level ${level}.`,
+    `Both you and the learner write only in ${langName}.`,
+    cefr, '',
+    '=== HARD RULES ===',
+    ...CORE_RULES.map((r, i) => `${i + 1}. ${r}`),
+    `${CORE_RULES.length + 1}. If the learner clearly struggles, simplify your ${langName}. Never switch into English unless they explicitly ask for help.`,
+    '',
+    `Now begin the conversation. Respond ONLY in ${langName}.`,
+  ].join('\n');
+}
 
 interface ConversationPageProps {
   langId: string;
@@ -9,6 +77,11 @@ interface ConversationPageProps {
 const LEVEL_NAMES: Record<string, string> = {
   A1: 'Beginner', A2: 'Elementary', B1: 'Intermediate',
   B2: 'Upper-int.', C1: 'Advanced', C2: 'Mastery',
+};
+
+const FREE_MODE_DISPLAY: Record<'normal' | 'crosstalk', { title: string; glyph: string }> = {
+  normal:    { title: 'Free chat',   glyph: '✶' },
+  crosstalk: { title: 'Cross-talk',  glyph: '⇄' },
 };
 
 const WEBLLM_MODELS = [
@@ -473,8 +546,8 @@ function EngineWidget({ modelId, loadedModelId, status, progress, webGPUSupporte
 
 // ── Main page ────────────────────────────────────────────────────────────────
 export function ConversationPage({ langId }: ConversationPageProps) {
-  const course = COURSES[langId];
-  const levels = course?.levels ?? ['A1'];
+  const { data: content } = useLanguageContent(langId);
+  const levels = content?.levels ?? ['A1'];
   const [level, setLevel] = useState<CefrLevel>(levels[0]);
   const [completed, setCompleted] = useState<Record<string, boolean>>(loadCompleted);
   const [session, setSession] = useState<SessionConfig | null>(null);
@@ -516,6 +589,8 @@ export function ConversationPage({ langId }: ConversationPageProps) {
     }
   }, [modelId, engineId, engineStatus]);
 
+  const langName = content?.language.name ?? langId;
+
   function startScenario(scenario: Scenario) {
     openSession({
       mode: 'scenario',
@@ -525,7 +600,7 @@ export function ConversationPage({ langId }: ConversationPageProps) {
       character: scenario.character,
       setting: scenario.setting,
       goal: scenario.goal,
-      systemPrompt: buildScenarioSystem(scenario, course?.name ?? langId, level),
+      systemPrompt: buildScenarioSystem(scenario, langName, level),
       opener: scenario.opener,
       starters: scenario.starters,
     });
@@ -533,18 +608,18 @@ export function ConversationPage({ langId }: ConversationPageProps) {
 
   function startFreeChat(freeMode: FreeMode) {
     openSession({
-      mode: freeMode.id,
+      mode: freeMode.kind,
       scenarioId: null,
-      title: freeMode.title,
+      title: FREE_MODE_DISPLAY[freeMode.kind].title,
       nativeTitle: freeMode.nativeTitle,
-      character: freeMode.id === 'crosstalk' ? 'A bilingual conversation partner' : 'A friendly conversation partner',
-      setting: freeMode.id === 'crosstalk'
-        ? `You write in English; the model replies in ${course?.name ?? langId} with a gloss.`
-        : `An open-ended chat in ${course?.name ?? langId}, paced for ${level}.`,
+      character: freeMode.kind === 'crosstalk' ? 'A bilingual conversation partner' : 'A friendly conversation partner',
+      setting: freeMode.kind === 'crosstalk'
+        ? `You write in English; the model replies in ${langName} with a gloss.`
+        : `An open-ended chat in ${langName}, paced for ${level}.`,
       goal: null,
-      systemPrompt: buildFreeSystem(freeMode.id, course?.name ?? langId, level),
-      opener: freeMode.opener[langId] ?? '',
-      starters: freeMode.starters[langId] ?? [],
+      systemPrompt: buildFreeSystem(freeMode.kind, langName, level),
+      opener: freeMode.openers[0] ?? '',
+      starters: freeMode.starters,
     });
   }
 
@@ -567,7 +642,7 @@ export function ConversationPage({ langId }: ConversationPageProps) {
     }
   }
 
-  const scenarios = SCENARIOS[langId]?.[level] ?? [];
+  const scenarios = content?.scenariosByLevel[level] ?? [];
 
   return (
     <>
@@ -576,7 +651,7 @@ export function ConversationPage({ langId }: ConversationPageProps) {
           <div>
             <h1 className="g-page-title">
               Conversation
-              <span className="g-page-title-native">in {course?.name ?? langId}</span>
+              <span className="g-page-title-native">in {langName}</span>
             </h1>
             <p className="g-page-sub">Practice with a roleplay partner. Pick a scenario, or just chat. Everything runs in your browser.</p>
           </div>
@@ -611,7 +686,7 @@ export function ConversationPage({ langId }: ConversationPageProps) {
           <div className="cv-levels" role="tablist" aria-label="Levels">
             {(['A1','A2','B1','B2','C1','C2'] as const).map(lv => {
               const exists = levels.includes(lv);
-              const list   = exists ? (SCENARIOS[langId]?.[lv] ?? []) : [];
+              const list   = exists ? (content?.scenariosByLevel[lv] ?? []) : [];
               return (
                 <button
                   key={lv}
@@ -675,13 +750,13 @@ export function ConversationPage({ langId }: ConversationPageProps) {
             </div>
           </div>
           <div className="cv-free-grid">
-            {FREE_MODES.map(m => (
+            {(content?.freeChatModes ?? []).map(m => (
               <button key={m.id} className="cv-free" onClick={() => startFreeChat(m)}>
-                <span className="cv-free-glyph" aria-hidden="true">{m.glyph}</span>
+                <span className="cv-free-glyph" aria-hidden="true">{FREE_MODE_DISPLAY[m.kind].glyph}</span>
                 <span className="cv-free-eyebrow">
-                  {m.id === 'crosstalk' ? `EN → ${course?.name ?? langId}` : `${course?.name ?? langId} ↔ ${course?.name ?? langId}`}
+                  {m.kind === 'crosstalk' ? `EN → ${langName}` : `${langName} ↔ ${langName}`}
                 </span>
-                <span className="cv-free-title">{m.title}</span>
+                <span className="cv-free-title">{FREE_MODE_DISPLAY[m.kind].title}</span>
                 <span className="cv-free-blurb">{m.blurb}</span>
                 <span className="cv-free-foot">
                   <span>Open chat</span>
@@ -698,7 +773,7 @@ export function ConversationPage({ langId }: ConversationPageProps) {
       {session && (
         <ChatView
           session={session}
-          langName={course?.name ?? langId}
+          langName={langName}
           level={level}
           engineRef={engineRef}
           engineId={engineId}

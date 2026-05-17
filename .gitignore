@@ -10,8 +10,9 @@ build/
 .env.local
 .env.*.local
 
-# TypeORM compiled output
+# Compiled output
 apps/api/dist/
+packages/shared/dist/
 
 # Vite cache
 .vite/

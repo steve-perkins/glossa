@@ -1,4 +1,11 @@
-// Schemas and types are added here as implementation progresses.
-// Phase 2 adds content schemas; Phase 3 adds auth/user types; Phase 4 adds progress + SRS.
-
 export * from './schemas/language';
+export * from './schemas/level';
+export * from './schemas/slide';
+export * from './schemas/unit';
+export * from './schemas/lesson';
+export * from './schemas/vocab-item';
+export * from './schemas/story';
+export * from './schemas/scenario';
+export * from './schemas/free-chat-mode';
+export * from './schemas/content-payload';
+export * from './schemas/user';

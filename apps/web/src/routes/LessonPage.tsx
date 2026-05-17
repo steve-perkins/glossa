@@ -1,11 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { DEMO_LESSON, type FillSlide } from '../data/lesson';
+import { useNavigate, useParams } from 'react-router-dom';
+import type { FillSlide } from '@glossa/shared';
+import { useLessonContent } from '../hooks/useContent';
 
-export function LessonPage() {
+interface LessonPageProps {
+  langId: string;
+}
+
+export function LessonPage({ langId }: LessonPageProps) {
+  const { lessonId = '' } = useParams<{ lessonId: string }>();
   const navigate = useNavigate();
-  const lesson = DEMO_LESSON;
-  const slides = lesson.slides;
+  const { data: lesson } = useLessonContent(langId, lessonId);
+  const slides = lesson?.slides ?? [];
   const total = slides.length;
 
   const [idx, setIdx] = useState(0);
@@ -38,6 +44,7 @@ export function LessonPage() {
   }
 
   const handleKey = useCallback((e: KeyboardEvent) => {
+    if (!slide) return;
     if (e.key === 'ArrowRight' || e.key === 'Enter') {
       if (!checked && (slide.type === 'grammar' || slide.type === 'vocab' || slide.type === 'done')) {
         goNext();
@@ -59,10 +66,25 @@ export function LessonPage() {
   }
 
   function speak(text: string) {
-    const lang = lesson.language.toLowerCase() === 'greek' ? 'el-GR' : 'es-ES';
+    const ttsLang = langId === 'greek' ? 'el-GR' : 'es-ES';
     const utt = new SpeechSynthesisUtterance(text);
-    utt.lang = lang;
+    utt.lang = ttsLang;
     speechSynthesis.speak(utt);
+  }
+
+  if (!lesson || !slide) {
+    return (
+      <div className="ls-app">
+        <header className="ls-head">
+          <button className="ls-exit" aria-label="Exit lesson" onClick={() => navigate('/')}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </header>
+        <div className="ls-stage"><div className="ls-stage-inner" /></div>
+      </div>
+    );
   }
 
   const pipStatus = slides.map((_, i) => {
@@ -91,8 +113,8 @@ export function LessonPage() {
         </div>
 
         <div className="ls-meta">
-          <span className="ls-meta-lang">{lesson.language} · {lesson.level}</span>
-          <span className="ls-meta-title">{lesson.unit}</span>
+          <span className="ls-meta-lang">{langId} · lesson</span>
+          <span className="ls-meta-title">{lesson.title}</span>
         </div>
       </header>
 

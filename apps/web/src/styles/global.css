@@ -156,6 +156,31 @@ body::before {
 }
 .g-settings-btn:hover { color: var(--ink); background: var(--cream-2); }
 
+/* ─── Auth / user menu ───────────────────────────────────────────────────── */
+.g-signin-btn { display: flex; align-items: center; }
+.g-userwrap { position: relative; }
+.g-avatar-btn {
+  width: 30px; height: 30px; border-radius: 50%; padding: 0;
+  border: 1.5px solid var(--rule); background: var(--cream-2);
+  cursor: pointer; overflow: hidden; display: flex; align-items: center; justify-content: center;
+}
+.g-avatar-btn:hover { border-color: var(--ink-4); }
+.g-avatar-img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.g-avatar-initials { font-size: 12px; font-weight: 700; color: var(--ink-2); line-height: 1; }
+.g-usermenu {
+  position: absolute; top: calc(100% + 8px); right: 0; min-width: 180px;
+  background: var(--paper); border: 1px solid var(--rule); border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(34,28,20,.10); padding: 10px; z-index: 100;
+}
+.g-usermenu-name { font-size: 13px; font-weight: 600; color: var(--ink); padding: 2px 4px; }
+.g-usermenu-email { font-size: 11px; color: var(--ink-4); padding: 0 4px 6px; }
+.g-usermenu-sep { border: none; border-top: 1px solid var(--rule); margin: 4px 0; }
+.g-usermenu-signout {
+  width: 100%; text-align: left; padding: 6px 8px; font-size: 13px; color: var(--ink-2);
+  background: none; border: none; border-radius: 6px; cursor: pointer;
+}
+.g-usermenu-signout:hover { background: var(--cream-2); }
+
 /* ─── Language picker ────────────────────────────────────────────────────── */
 .g-langwrap { position: relative; }
 .g-langbtn {

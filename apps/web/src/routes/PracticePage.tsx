@@ -1,5 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
-import { PRACTICE_POOL, type PracticeItem } from '../data/practice';
+import type { VocabItem } from '@glossa/shared';
+import { useLanguageContent } from '../hooks/useContent';
+
+type PracticeItem = VocabItem;
 
 interface PracticePageProps {
   langId: string;
@@ -23,7 +26,8 @@ function makeDisctractors(item: PracticeItem, pool: PracticeItem[]): string[] {
 }
 
 export function PracticePage({ langId }: PracticePageProps) {
-  const pool = PRACTICE_POOL[langId];
+  const { data: content } = useLanguageContent(langId);
+  const poolItems = content?.vocabItems ?? null;
   const [phase, setPhase] = useState<Phase>('config');
   const [mode, setMode] = useState<Mode>('mc');
   const [roundSize, setRoundSize] = useState(10);
@@ -37,7 +41,7 @@ export function PracticePage({ langId }: PracticePageProps) {
   const [distractors, setDistractors] = useState<string[]>([]);
 
   function startSession() {
-    const q = shuffle(pool?.items ?? []).slice(0, roundSize);
+    const q = shuffle(poolItems ?? []).slice(0, roundSize);
     setQueue(q);
     setQIdx(0);
     setScore({ correct: 0, wrong: 0 });
@@ -49,8 +53,8 @@ export function PracticePage({ langId }: PracticePageProps) {
     setFillValue('');
     setChecked(false);
     setCorrect(null);
-    if (mode === 'mc' && pool) {
-      setDistractors(makeDisctractors(q[i], pool.items));
+    if (mode === 'mc' && poolItems) {
+      setDistractors(makeDisctractors(q[i], poolItems));
     }
   }
 
@@ -91,7 +95,7 @@ export function PracticePage({ langId }: PracticePageProps) {
     return () => window.removeEventListener('keydown', handleKey);
   }, [handleKey]);
 
-  if (!pool) return <main className="g-main"><p>No practice data for this language yet.</p></main>;
+  if (!poolItems) return <main className="g-main"><p>No practice data for this language yet.</p></main>;
 
   const item = queue[qIdx];
   const progress = queue.length ? qIdx / queue.length : 0;
@@ -128,7 +132,7 @@ export function PracticePage({ langId }: PracticePageProps) {
         <div className="ls-stage">
           <div className="ls-stage-inner">
             <div className="ls-slide">
-              <div className="ls-eyebrow">{item.unit}</div>
+              <div className="ls-eyebrow">{item.unitTitle}</div>
               <h2 className="ls-h ls-mc-prompt">
                 {mode === 'mc' ? 'Which word means…' : 'Type the word in the target language'}
               </h2>
@@ -186,7 +190,7 @@ export function PracticePage({ langId }: PracticePageProps) {
                     {!correct && (
                       <span className="pr-feedback-sub">
                         The answer is <b>{item.word}</b>
-                        {item.roman && <> ({item.roman})</>}
+                        {item.romanization && <> ({item.romanization})</>}
                       </span>
                     )}
                   </div>
@@ -270,7 +274,7 @@ export function PracticePage({ langId }: PracticePageProps) {
         </div>
         <div className="pr-stats">
           <div className="pr-stat">
-            <span className="pr-stat-num">{pool.items.length}</span>
+            <span className="pr-stat-num">{poolItems.length}</span>
             <span className="pr-stat-lbl">words available</span>
           </div>
           <div className="pr-stat pr-stat--good">

@@ -1,9 +1,29 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Flag } from './Flag';
 import { TweaksPanel } from './TweaksPanel';
-import { useTweaks } from '../hooks/useTweaks';
-import { LANGUAGE_LIST } from '../data/courses';
+import { useAuth } from '../context/AuthContext';
+import type { Tweaks } from '../hooks/useTweaks';
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (cfg: { client_id: string; callback: (r: { credential: string }) => void }) => void;
+          renderButton: (el: HTMLElement, opts: object) => void;
+          prompt: () => void;
+        };
+      };
+    };
+    onGoogleLibraryLoad?: () => void;
+  }
+}
+
+const LANGUAGE_LIST = [
+  { id: 'greek',   name: 'Greek',   native: 'Ελληνικά', flag: 'GR' },
+  { id: 'spanish', name: 'Spanish', native: 'Español',  flag: 'ES' },
+];
 
 const NAV_LINKS = [
   { to: '/', label: 'Learn' },
@@ -15,13 +35,19 @@ const NAV_LINKS = [
 interface NavbarProps {
   langId: string;
   onLangChange: (id: string) => void;
+  tweaks: Tweaks;
+  setTweaks: (patch: Partial<Tweaks>) => void;
 }
 
-export function Navbar({ langId, onLangChange }: NavbarProps) {
+export function Navbar({ langId, onLangChange, tweaks, setTweaks }: NavbarProps) {
   const [langOpen, setLangOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [tweaksOpen, setTweaksOpen] = useState(false);
-  const { tweaks, setTweaks } = useTweaks();
+  const [userOpen, setUserOpen] = useState(false);
+  const { user, signIn, signOut } = useAuth();
+  const gBtnRef = useRef<HTMLDivElement>(null);
+  const signInRef = useRef(signIn);
+  useEffect(() => { signInRef.current = signIn; }, [signIn]);
 
   const currentLang = LANGUAGE_LIST.find(l => l.id === langId) ?? LANGUAGE_LIST[0];
 
@@ -29,6 +55,39 @@ export function Navbar({ langId, onLangChange }: NavbarProps) {
     onLangChange(id);
     setLangOpen(false);
   }
+
+  useEffect(() => {
+    if (user) return;
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+    if (!clientId) return;
+
+    function renderGoogleButton() {
+      if (!gBtnRef.current || !window.google) return;
+      window.google.accounts.id.initialize({
+        client_id: clientId!,
+        callback: (r) => signInRef.current(r.credential).catch(() => {}),
+      });
+      window.google.accounts.id.renderButton(gBtnRef.current, {
+        type: 'standard',
+        theme: 'outline',
+        size: 'medium',
+        text: 'signin_with',
+        shape: 'pill',
+      });
+    }
+
+    if (window.google) {
+      renderGoogleButton();
+    } else {
+      window.onGoogleLibraryLoad = renderGoogleButton;
+    }
+
+    return () => {
+      if (window.onGoogleLibraryLoad === renderGoogleButton) {
+        window.onGoogleLibraryLoad = undefined;
+      }
+    };
+  }, [user]); // signIn accessed via ref — not a dep
 
   return (
     <>
@@ -125,6 +184,30 @@ export function Navbar({ langId, onLangChange }: NavbarProps) {
               </svg>
             </button>
 
+            {/* Auth: sign-in button or user avatar */}
+            {user ? (
+              <div key="auth-user" className="g-userwrap">
+                <button className="g-avatar-btn" onClick={() => setUserOpen(o => !o)} aria-label="Account">
+                  {user.avatarUrl
+                    ? <img src={user.avatarUrl} alt={user.displayName} className="g-avatar-img" width={28} height={28} />
+                    : <span className="g-avatar-initials">{user.displayName.charAt(0).toUpperCase()}</span>
+                  }
+                </button>
+                {userOpen && (
+                  <div className="g-usermenu">
+                    <div className="g-usermenu-name">{user.displayName}</div>
+                    <div className="g-usermenu-email">{user.email}</div>
+                    <hr className="g-usermenu-sep" />
+                    <button className="g-usermenu-signout" onClick={() => { signOut(); setUserOpen(false); }}>
+                      Sign out
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div key="auth-signin" ref={gBtnRef} className="g-signin-btn" />
+            )}
+
             <button
               className={`g-burger${menuOpen ? ' is-open' : ''}`}
               aria-label="Menu"
@@ -157,10 +240,10 @@ export function Navbar({ langId, onLangChange }: NavbarProps) {
         <TweaksPanel tweaks={tweaks} setTweaks={setTweaks} onClose={() => setTweaksOpen(false)} />
       )}
 
-      {(langOpen) && (
+      {(langOpen || userOpen) && (
         <div
           style={{ position: 'fixed', inset: 0, zIndex: 55 }}
-          onClick={() => setLangOpen(false)}
+          onClick={() => { setLangOpen(false); setUserOpen(false); }}
           aria-hidden="true"
         />
       )}

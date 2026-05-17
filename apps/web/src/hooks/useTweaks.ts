@@ -26,7 +26,7 @@ function load(): Tweaks {
   return DEFAULTS;
 }
 
-function applyToDOM(t: Tweaks) {
+export function applyTweaksToDOM(t: Tweaks) {
   const root = document.documentElement;
   root.setAttribute('data-theme', t.theme);
   root.setAttribute('data-accent', t.accent);
@@ -37,7 +37,7 @@ export function useTweaks() {
   const [tweaks, setTweaksState] = useState<Tweaks>(load);
 
   useEffect(() => {
-    applyToDOM(tweaks);
+    applyTweaksToDOM(tweaks);
   }, [tweaks]);
 
   const setTweaks = useCallback((patch: Partial<Tweaks>) => {

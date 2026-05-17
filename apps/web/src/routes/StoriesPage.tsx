@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { STORIES, type Story } from '../data/stories';
-import { COURSES, type LevelCode } from '../data/courses';
+import type { Story, CefrLevel } from '@glossa/shared';
+import { useLanguageContent } from '../hooks/useContent';
 
 interface StoriesPageProps {
   langId: string;
@@ -100,7 +100,7 @@ function Reader({ story, langId, langName, level, onClose, onMarkRead, read }: {
   useEffect(() => { rateRef.current = speed.rate; }, [speed.rate]);
 
   const wordStarts = useMemo(
-    () => story.paragraphs.map(p => tokenizeWords(p.t)),
+    () => story.paragraphs.map(p => tokenizeWords(p.targetText)),
     [story],
   );
 
@@ -245,7 +245,7 @@ function Reader({ story, langId, langName, level, onClose, onMarkRead, read }: {
     }
     setParaIdx(i); setWordIdx(-1);
     scrollParaIntoView(i);
-    const text = story.paragraphs[i].t;
+    const text = story.paragraphs[i].targetText;
     const u = new SpeechSynthesisUtterance(text);
     u.lang = speechLang;
     u.rate = rateRef.current;
@@ -405,7 +405,7 @@ function Reader({ story, langId, langName, level, onClose, onMarkRead, read }: {
               <StoryParagraph
                 key={i}
                 paraIdx={i}
-                text={p.t}
+                text={p.targetText}
                 active={paraIdx === i}
                 activeWord={paraIdx === i ? wordIdx : -1}
               />
@@ -441,7 +441,7 @@ function Reader({ story, langId, langName, level, onClose, onMarkRead, read }: {
                   className={`st-para${paraIdx === i ? ' is-active-para' : ''}`}
                   data-para-idx={i}
                 >
-                  {p.e}
+                  {p.englishText}
                 </p>
               ))}
               <div className="st-story-end">
@@ -464,20 +464,20 @@ function Reader({ story, langId, langName, level, onClose, onMarkRead, read }: {
 
 // ── Main page ───────────────────────────────────────────────────────────────
 export function StoriesPage({ langId }: StoriesPageProps) {
-  const course = COURSES[langId];
-  const allStories = STORIES[langId] ?? {};
-  const levels = course?.levels ?? ['A1'];
-  const [level, setLevel] = useState<LevelCode>(levels[0]);
+  const { data: content } = useLanguageContent(langId);
+  const allStories = content?.storiesByLevel ?? {};
+  const levels = content?.levels ?? ['A1'];
+  const [level, setLevel] = useState<CefrLevel>(levels[0]);
   const [readMap, setReadMap] = useState<Record<string, boolean>>(loadReadMap);
   const [filter, setFilter] = useState<'all' | 'unread' | 'read'>('all');
   const [openStory, setOpenStory] = useState<Story | null>(null);
 
   useEffect(() => {
-    if (!levels.includes(level)) setLevel(levels[0] as LevelCode);
+    if (!levels.includes(level)) setLevel(levels[0] as CefrLevel);
   }, [langId]);
 
   function isRead(s: Story) {
-    return s.id in readMap ? readMap[s.id] : !!s.read;
+    return !!readMap[s.id];
   }
   function markRead(storyId: string, val: boolean) {
     setReadMap(m => { const next = { ...m, [storyId]: val }; saveReadMap(next); return next; });
@@ -502,7 +502,7 @@ export function StoriesPage({ langId }: StoriesPageProps) {
           <div>
             <h1 className="g-page-title">
               Stories
-              <span className="g-page-title-native">in {course?.name ?? langId}</span>
+              <span className="g-page-title-native">in {content?.language.name ?? langId}</span>
             </h1>
             <p className="g-page-sub">
               Short bilingual reads, hand-picked by level. Toggle the translation, listen along, and watch each word light up as it's spoken.
@@ -630,7 +630,7 @@ export function StoriesPage({ langId }: StoriesPageProps) {
         <Reader
           story={openStory}
           langId={langId}
-          langName={course?.name ?? langId}
+          langName={content?.language.name ?? langId}
           level={level}
           onClose={() => setOpenStory(null)}
           onMarkRead={val => markRead(openStory.id, val)}

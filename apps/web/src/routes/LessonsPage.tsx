@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { COURSES, type LevelCode } from '../data/courses';
+import type { CefrLevel } from '@glossa/shared';
+import { useLanguageContent } from '../hooks/useContent';
 
 interface LessonsPageProps {
   langId: string;
@@ -8,17 +9,19 @@ interface LessonsPageProps {
 
 type Layout = 'list' | 'grid' | 'path';
 
+const ALL_LEVELS: CefrLevel[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
+
 export function LessonsPage({ langId }: LessonsPageProps) {
-  const course = COURSES[langId];
+  const { data: content } = useLanguageContent(langId);
   const navigate = useNavigate();
-  const availableLevels = course?.levels ?? [];
-  const [activeLevel, setActiveLevel] = useState<LevelCode>(availableLevels[0] ?? 'A1');
+  const availableLevels = content?.levels ?? [];
+  const [activeLevel, setActiveLevel] = useState<CefrLevel>('A1');
   const [layout, setLayout] = useState<Layout>('list');
-  const [openUnits, setOpenUnits] = useState<Set<string>>(new Set(['g-a1-2', 's-a1-1']));
+  const [openUnits, setOpenUnits] = useState<Set<string>>(new Set(['greek-people-and-family', 'spanish-greetings']));
 
-  if (!course) return null;
+  if (!content) return null;
 
-  const units = course.units[activeLevel] ?? [];
+  const units = content.unitsByLevel[activeLevel] ?? [];
 
   function toggleUnit(id: string) {
     setOpenUnits(prev => {
@@ -28,8 +31,6 @@ export function LessonsPage({ langId }: LessonsPageProps) {
       return next;
     });
   }
-
-  const ALL_LEVELS: LevelCode[] = ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'];
 
   return (
     <main className="g-main">
@@ -47,7 +48,7 @@ export function LessonsPage({ langId }: LessonsPageProps) {
               <span>~8 min</span>
             </div>
           </div>
-          <button className="g-continue-cta" onClick={() => navigate('/lesson/demo')}>
+          <button className="g-continue-cta" onClick={() => navigate('/lesson/greek-people-and-family-this-is-my')}>
             Continue
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -66,8 +67,8 @@ export function LessonsPage({ langId }: LessonsPageProps) {
         <div className="g-level-head">
           <div>
             <h1 className="g-page-title">
-              {course.name}
-              <span className="g-page-title-native">{course.native}</span>
+              {content.language.name}
+              <span className="g-page-title-native">{content.language.nativeName}</span>
             </h1>
             <p className="g-page-sub">Track your progress through every unit and lesson.</p>
           </div>
@@ -181,16 +182,16 @@ export function LessonsPage({ langId }: LessonsPageProps) {
                       <div className="g-grid">
                         {unit.lessons.map((lesson, li) => (
                           <button
-                            key={li}
+                            key={lesson.id}
                             className={`g-card${lesson.status === 'current' ? ' is-current' : lesson.status === 'done' ? ' is-done' : lesson.status === 'locked' ? ' is-locked' : ''}`}
                             disabled={lesson.status === 'locked'}
-                            onClick={() => lesson.status !== 'locked' && navigate('/lesson/demo')}
+                            onClick={() => lesson.status !== 'locked' && navigate(`/lesson/${lesson.id}`)}
                           >
                             <div className="g-card-top">
                               <span className="g-card-title">{lesson.title}</span>
                               <span className="g-card-num">{li + 1}</span>
                             </div>
-                            <span className="g-card-desc">{lesson.desc}</span>
+                            <span className="g-card-desc">{lesson.description}</span>
                             <div className="g-card-foot">
                               <span className="g-card-cta">
                                 {lesson.status === 'done' ? 'Review' : lesson.status === 'current' ? 'Continue' : lesson.status === 'next' ? 'Start' : 'Locked'}
@@ -202,12 +203,12 @@ export function LessonsPage({ langId }: LessonsPageProps) {
                     ) : layout === 'path' ? (
                       <div className="g-path">
                         {unit.lessons.map((lesson, li) => (
-                          <div key={li} className="g-path-row" style={{ '--offset': (li % 2 === 0 ? 0 : 1) } as React.CSSProperties}>
+                          <div key={lesson.id} className="g-path-row" style={{ '--offset': (li % 2 === 0 ? 0 : 1) } as React.CSSProperties}>
                             {li > 0 && <div className={`g-path-line${lesson.status === 'done' ? ' is-done' : lesson.status === 'current' ? ' is-current' : ''}`} />}
                             <button
                               className={`g-node${lesson.status === 'done' ? ' is-done' : lesson.status === 'current' ? ' is-current' : lesson.status === 'next' ? ' is-next' : ' is-locked'}`}
                               disabled={lesson.status === 'locked'}
-                              onClick={() => lesson.status !== 'locked' && navigate('/lesson/demo')}
+                              onClick={() => lesson.status !== 'locked' && navigate(`/lesson/${lesson.id}`)}
                             >
                               <span className="g-node-circle">
                                 {lesson.status === 'done' ? (
@@ -226,7 +227,7 @@ export function LessonsPage({ langId }: LessonsPageProps) {
                               <span className="g-node-info">
                                 <span className="g-node-num">Lesson {li + 1}</span>
                                 <span className="g-node-title">{lesson.title}</span>
-                                <span className="g-node-desc">{lesson.desc}</span>
+                                <span className="g-node-desc">{lesson.description}</span>
                               </span>
                             </button>
                           </div>
@@ -235,11 +236,11 @@ export function LessonsPage({ langId }: LessonsPageProps) {
                     ) : (
                       <ul className="g-list">
                         {unit.lessons.map((lesson, li) => (
-                          <li key={li}>
+                          <li key={lesson.id}>
                             <button
                               className={`g-row${lesson.status === 'done' ? ' is-done' : lesson.status === 'current' ? ' is-current' : lesson.status === 'next' ? ' is-next' : ' is-locked'}`}
                               disabled={lesson.status === 'locked'}
-                              onClick={() => lesson.status !== 'locked' && navigate('/lesson/demo')}
+                              onClick={() => lesson.status !== 'locked' && navigate(`/lesson/${lesson.id}`)}
                             >
                               <span className="g-row-bullet">
                                 {lesson.status === 'done' ? (
@@ -257,7 +258,7 @@ export function LessonsPage({ langId }: LessonsPageProps) {
                               </span>
                               <span className="g-row-text">
                                 <span className="g-row-title">{lesson.title}</span>
-                                <span className="g-row-desc">{lesson.desc}</span>
+                                <span className="g-row-desc">{lesson.description}</span>
                               </span>
                               <span className={`g-row-cta${lesson.status === 'done' || lesson.status === 'next' ? ' is-ghost' : ''}`}>
                                 {lesson.status === 'done' ? 'Review' : lesson.status === 'current' ? 'Continue →' : lesson.status === 'next' ? 'Start' : ''}
