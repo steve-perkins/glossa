@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import type { Story, CefrLevel } from '@glossa/shared';
 import { useLanguageContent } from '../hooks/useContent';
+import { useStoryProgress, useStoryProgressMutation } from '../hooks/useProgress';
 
 interface StoriesPageProps {
   langId: string;
@@ -471,16 +472,30 @@ export function StoriesPage({ langId }: StoriesPageProps) {
   const [readMap, setReadMap] = useState<Record<string, boolean>>(loadReadMap);
   const [filter, setFilter] = useState<'all' | 'unread' | 'read'>('all');
   const [openStory, setOpenStory] = useState<Story | null>(null);
+  const { data: serverReadIds } = useStoryProgress();
+  const storyProgressMutation = useStoryProgressMutation();
 
   useEffect(() => {
     if (!levels.includes(level)) setLevel(levels[0] as CefrLevel);
   }, [langId]);
+
+  // Merge server-side read progress into local readMap
+  useEffect(() => {
+    if (!serverReadIds) return;
+    setReadMap(m => {
+      const merged = { ...m };
+      for (const id of serverReadIds) merged[id] = true;
+      saveReadMap(merged);
+      return merged;
+    });
+  }, [serverReadIds]);
 
   function isRead(s: Story) {
     return !!readMap[s.id];
   }
   function markRead(storyId: string, val: boolean) {
     setReadMap(m => { const next = { ...m, [storyId]: val }; saveReadMap(next); return next; });
+    if (val) storyProgressMutation.mutate(storyId);
   }
 
   const storiesAtLevel = allStories[level] ?? [];

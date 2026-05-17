@@ -1,6 +1,8 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { VocabItem } from '@glossa/shared';
 import { useLanguageContent } from '../hooks/useContent';
+import { useSrsDue, useSrsSummary, useSrsAnswerMutation } from '../hooks/useProgress';
+import { useAuth } from '../context/AuthContext';
 
 type PracticeItem = VocabItem;
 
@@ -10,6 +12,7 @@ interface PracticePageProps {
 
 type Mode = 'mc' | 'fill';
 type Phase = 'config' | 'session' | 'results';
+type SrsResult = 'wrong' | 'correct' | 'easy';
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -26,8 +29,13 @@ function makeDisctractors(item: PracticeItem, pool: PracticeItem[]): string[] {
 }
 
 export function PracticePage({ langId }: PracticePageProps) {
+  const { user } = useAuth();
   const { data: content } = useLanguageContent(langId);
   const poolItems = content?.vocabItems ?? null;
+  const { data: srsDue } = useSrsDue(langId, 20);
+  const { data: srsSummary } = useSrsSummary(langId);
+  const srsAnswerMutation = useSrsAnswerMutation(langId);
+
   const [phase, setPhase] = useState<Phase>('config');
   const [mode, setMode] = useState<Mode>('mc');
   const [roundSize, setRoundSize] = useState(10);
@@ -40,8 +48,25 @@ export function PracticePage({ langId }: PracticePageProps) {
   const [score, setScore] = useState({ correct: 0, wrong: 0 });
   const [distractors, setDistractors] = useState<string[]>([]);
 
+  // Collect SRS answers during session to submit on completion
+  const sessionAnswers = useRef<{ vocabItemId: string; result: SrsResult }[]>([]);
+
+  function buildQueue(): PracticeItem[] {
+    const pool = poolItems ?? [];
+    if (user && srsDue && srsDue.length > 0) {
+      // Prioritize SRS due items; fill remainder from random pool
+      const dueIds = new Set(srsDue.map(v => v.id));
+      const dueItems = srsDue.slice(0, roundSize);
+      if (dueItems.length >= roundSize) return dueItems;
+      const extras = shuffle(pool.filter(v => !dueIds.has(v.id)));
+      return [...dueItems, ...extras].slice(0, roundSize);
+    }
+    return shuffle(pool).slice(0, roundSize);
+  }
+
   function startSession() {
-    const q = shuffle(poolItems ?? []).slice(0, roundSize);
+    const q = buildQueue();
+    sessionAnswers.current = [];
     setQueue(q);
     setQIdx(0);
     setScore({ correct: 0, wrong: 0 });
@@ -58,12 +83,22 @@ export function PracticePage({ langId }: PracticePageProps) {
     }
   }
 
+  function recordAnswer(item: PracticeItem, isCorrect: boolean) {
+    if (user) {
+      sessionAnswers.current.push({
+        vocabItemId: item.id,
+        result: isCorrect ? 'correct' : 'wrong',
+      });
+    }
+  }
+
   function checkMC(word: string) {
     if (checked) return;
     const isCorrect = word === queue[qIdx].word;
     setCorrect(isCorrect);
     setChecked(true);
     setScore(s => isCorrect ? { ...s, correct: s.correct + 1 } : { ...s, wrong: s.wrong + 1 });
+    recordAnswer(queue[qIdx], isCorrect);
   }
 
   function checkFill() {
@@ -72,11 +107,20 @@ export function PracticePage({ langId }: PracticePageProps) {
     setCorrect(isCorrect);
     setChecked(true);
     setScore(s => isCorrect ? { ...s, correct: s.correct + 1 } : { ...s, wrong: s.wrong + 1 });
+    recordAnswer(queue[qIdx], isCorrect);
+  }
+
+  function submitSessionAnswers() {
+    for (const answer of sessionAnswers.current) {
+      srsAnswerMutation.mutate(answer);
+    }
+    sessionAnswers.current = [];
   }
 
   function advance() {
     const next = qIdx + 1;
     if (next >= queue.length) {
+      submitSessionAnswers();
       setPhase('results');
     } else {
       setQIdx(next);
@@ -100,11 +144,14 @@ export function PracticePage({ langId }: PracticePageProps) {
   const item = queue[qIdx];
   const progress = queue.length ? qIdx / queue.length : 0;
 
+  const masteredCount = srsSummary?.mastered ?? 0;
+  const dueCount = srsSummary?.due ?? 0;
+
   if (phase === 'session' && item) {
     return (
       <div className="pr-session">
         <header className="pr-session-head">
-          <button className="ls-exit" aria-label="End session" onClick={() => setPhase('results')}>
+          <button className="ls-exit" aria-label="End session" onClick={() => { submitSessionAnswers(); setPhase('results'); }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
             </svg>
@@ -278,11 +325,11 @@ export function PracticePage({ langId }: PracticePageProps) {
             <span className="pr-stat-lbl">words available</span>
           </div>
           <div className="pr-stat pr-stat--good">
-            <span className="pr-stat-num">0</span>
+            <span className="pr-stat-num">{masteredCount}</span>
             <span className="pr-stat-lbl">mastered</span>
           </div>
           <div className="pr-stat pr-stat--bad">
-            <span className="pr-stat-num">0</span>
+            <span className="pr-stat-num">{dueCount}</span>
             <span className="pr-stat-lbl">due for review</span>
           </div>
         </div>

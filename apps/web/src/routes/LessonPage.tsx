@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import type { FillSlide } from '@glossa/shared';
 import { useLessonContent } from '../hooks/useContent';
+import { useLessonProgressMutation } from '../hooks/useProgress';
+import { useAuth } from '../context/AuthContext';
 
 interface LessonPageProps {
   langId: string;
@@ -13,6 +15,10 @@ export function LessonPage({ langId }: LessonPageProps) {
   const { data: lesson } = useLessonContent(langId, lessonId);
   const slides = lesson?.slides ?? [];
   const total = slides.length;
+  const { accessToken } = useAuth();
+  const progressMutation = useLessonProgressMutation();
+  const markedInProgressRef = useRef(false);
+  const markedDoneRef = useRef(false);
 
   const [idx, setIdx] = useState(0);
   const [selected, setSelected] = useState<string[]>([]);
@@ -57,6 +63,20 @@ export function LessonPage({ langId }: LessonPageProps) {
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
   }, [handleKey]);
+
+  // Mark lesson in_progress once both lesson and auth are ready
+  useEffect(() => {
+    if (!lesson || !lessonId || !accessToken || markedInProgressRef.current) return;
+    markedInProgressRef.current = true;
+    progressMutation.mutate({ lessonId, status: 'in_progress', lastSlideOrdinal: 0 });
+  }, [lesson, lessonId, accessToken]);
+
+  // Mark lesson done when reaching the done slide (once auth is ready)
+  useEffect(() => {
+    if (!slide || slide.type !== 'done' || !accessToken || markedDoneRef.current) return;
+    markedDoneRef.current = true;
+    progressMutation.mutate({ lessonId, status: 'done' });
+  }, [slide?.type, lessonId, accessToken]);
 
   function checkFill(fill: FillSlide) {
     if (checked) return;

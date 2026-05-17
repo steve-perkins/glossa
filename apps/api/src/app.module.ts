@@ -4,6 +4,7 @@ import { DatabaseModule } from './database/database.module';
 import { ContentModule } from './content/content.module';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
+import { ProgressModule } from './progress/progress.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -20,6 +21,7 @@ import { AppService } from './app.service';
     ContentModule,
     AuthModule,
     UserModule,
+    ProgressModule,
   ],
   controllers: [AppController],
   providers: [AppService],
